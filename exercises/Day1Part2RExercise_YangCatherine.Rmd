@@ -50,8 +50,24 @@ for (i in countries){
 Write a script that loops through the gapminder data by continent and prints out whether the mean life expectancy is smaller than 50, between 50 and 70, or greater than 70
 
 ```{r}
+continents <- unique(gapminder$continent)
+
+for (i in continents){
+    if (mean(gapminder$lifeExp[gapminder$continent == i]) < 50){
+        print(paste("Continent", i, "has mean life expectancy < 50.")) 
+    } else {
+        if (mean(gapminder$lifeExp[gapminder$continent == i]) < 70){
+            print(paste("Continent", i, "has mean life expectancy < 70."))
+        } else {
+            print(paste("Continent", i, "has mean life expectancy > 70."))
+        }
+    } 
+}
 
 ```
+
+## Write Functions
+Write Functions
 
 ## Including Plots
 
