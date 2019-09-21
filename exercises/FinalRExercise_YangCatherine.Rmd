@@ -77,8 +77,8 @@ summary(schools)
 
 Use the per_free_lunch as a proxy for determining poverty-level. If there is a high percentage of students receiving free lunch in an area, we would expect it to be a higher poverty area, vice versa. Assign the categories based on the percentiles, such that there is roughly the same number of counties in each category.
 ```{r}
-# Set the county category to low, medium, or high poverty areas based on the percentage of 
-schools <- schools %>% 
+# Set the county category to low, medium, or high poverty areas based on percentiles that increment by 33%
+schools <- schools %>%
     mutate(county_category=case_when(
         per_free_lunch < quantile(0.33) ~ "low",
         per_free_lunch < quantile(0.67) ~ "medium",
@@ -88,19 +88,23 @@ schools <- schools %>%
 
 schools %>% 
     group_by(county_category) %>% 
-    summarize(avg_per_free_lunch=mean(per_free_lunch))
+    summarize(avg_per_free_lunch=mean(per_free_lunch, na.rm=TRUE))
 ```
 
 **3. The tests that the NYS Department of Education administers changes from time to time, so scale scores are not directly comparable year-to-year. Create a new variable that is the standardized z-score for math and English Language Arts (ELA) for each year (hint: group by year and use the scale() function)**
 
 ```{r}
+# Get the z-score by setting center=TRUE to subtract the mean and scale=TRUE to divide by the standard deviation
 schools <- schools %>%
     group_by(year) %>% 
-    mutate(z_score_math=scale(mean_math_score)) %>% 
-    mutate(s_score_ela=scale(mean_ela_score)) %>% 
+    mutate(z_score_math=scale(mean_math_score, center=TRUE, scale=TRUE)) %>% 
+    mutate(z_score_ela=scale(mean_ela_score, center=TRUE, scale=TRUE)) %>% 
     ungroup()
 
-summary(schools)
+# Get summary statistics for the z_score_math and z_score_ela variables to ensure that the scaling was performed correctly. The means should equal 0
+summary(schools$z_score_math)
+summary(schools$z_score_ela)
+head(schools)
 ```
 
 ## Task 4: Merge datasets
@@ -108,6 +112,21 @@ summary(schools)
 ***Create a county-level dataset that merges variables from the schools dataset and the ACS dataset. Remember that you have learned multiple approaches on how to do this, and that you will have to decide how to summarize data when moving from the school to the county level.***
 
 ```{r}
+# Group the schools dataset by county, and merge with the counties dataset by county_name
+# Do not select the data that is not applicable at the county level (e.g., school name, school ID, district, etc.)
+# Summarize the data by summing total enrollment and averaging the other variables by county. 
+county <- schools %>% 
+    select(county_name, total_enroll, per_free_lunch, per_reduced_lunch, per_lep, mean_ela_score,
+           mean_math_score) %>%
+    group_by(county_name) %>%
+    summarize(total_enroll=sum(total_enroll, na.rm=TRUE),
+              per_free_lunch=mean(per_free_lunch, na.rm=TRUE),
+              per_reduced_lunch=mean(per_reduced_lunch, na.rm=TRUE),
+              per_lep=mean(per_lep, na.rm=TRUE),
+              mean_ela_score=mean(mean_ela_score, na.rm=TRUE),
+              mean_math_score=mean(mean_math_score, na.rm=TRUE))
+
+head(county)
 
 ```
 
