@@ -67,14 +67,15 @@ for (i in continents){
 ```
 
 ## Write Functions
-Write Functions
+Create a function that given a data frame will print the name of each column and the class of data it contains. Use the gapminder dataset. Hint: Use mode() or class() to get the class of the data in each column. Remember that names() or colnames() returns the name of the columns in a dataset.
 
-## Including Plots
+```{r}
+get_df_info <-function (df){
+    cols <- names(df)
 
-You can also embed plots, for example:
-
-```{r another chunk name}
-plot(pressure)
+    for (i in cols){
+        print(paste0(i, ": ", class(df[, i])))
+    }
+}
+get_df_info(gapminder)
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
