@@ -1,0 +1,113 @@
+---
+title: "Final R Exercise"
+author: "Catherine Yang"
+date: "9/19/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task 1: Import the data
+
+```{r}
+setwd("..")
+
+# Read in data
+schools <- read_csv("data/nys_schools.csv")
+counties <- read_csv("data/nys_acs.csv")
+```
+
+## Task 2: Explore the data
+
+**Getting to know your data is a critical part of data analysis. Take the time to explore the structure of the two dataframes you have imported. What types of variables are there? Is there any missing data? How can you tell? What else do you notice about the data?**
+
+First, look at the the `schools` data, t
+```{r}
+# Explore the datatypes, df dimensions, etc.
+str(schools)
+head(schools)
+dim(schools)
+summary(schools)
+```
+
+```{r}
+# Check for missing data
+cols <- 1:ncol(schools)
+for (i in cols) {
+    print(paste(i, sum(is.na(schools[,i]))))
+}
+```
+
+There's 35,663 rows and the district_name column has 1,706 missing values.
+
+The numerical data seems to have minimums of -99, which would not make sense given the variables they describe
+
+Do the same exploration with the `counties` dataset
+```{r}
+str(counties)
+head(counties)
+dim(counties)
+summary(counties)
+```
+
+```{r}
+# Check for missing data
+cols <- 1:ncol(counties)
+for (i in cols) {
+    print(paste(i, sum(is.na(counties[,i]))))
+}
+```
+
+There are 496 rows in this dataset and no missing data.
+
+## Task 3: Recoding and variable manipulation
+
+**1. Deal with missing values, which are currently coded as -99**
+```{r}
+# Set the values that are -99 to 0 
+schools[schools == -99] <- NA
+
+# Summarize the dataset to double check
+summary(schools)
+```
+
+**2. Create a categorical variable that groups counties into "high", "medium", and "low" poverty groups. Decide how you want to split up the groups and briefly explain your decision.**
+
+Use the per_free_lunch as a proxy for determining poverty-level. If there is a high percentage of students receiving free lunch in an area, we would expect it to be a higher poverty area, vice versa. Assign the categories based on the percentiles, such that there is roughly the same number of counties in each category.
+```{r}
+# Set the county category to low, medium, or high poverty areas based on the percentage of 
+schools <- schools %>% 
+    mutate(county_category=case_when(
+        per_free_lunch < quantile(0.33) ~ "low",
+        per_free_lunch < quantile(0.67) ~ "medium",
+        per_free_lunch >= quantile(0.67) ~ "high"
+    )
+)
+
+schools %>% 
+    group_by(county_category) %>% 
+    summarize(avg_per_free_lunch=mean(per_free_lunch))
+```
+
+**3. The tests that the NYS Department of Education administers changes from time to time, so scale scores are not directly comparable year-to-year. Create a new variable that is the standardized z-score for math and English Language Arts (ELA) for each year (hint: group by year and use the scale() function)**
+
+```{r}
+schools <- schools %>%
+    group_by(year) %>% 
+    mutate(z_score_math=scale(mean_math_score)) %>% 
+    mutate(s_score_ela=scale(mean_ela_score)) %>% 
+    ungroup()
+
+summary(schools)
+```
+
+## Task 4: Merge datasets
+
+***Create a county-level dataset that merges variables from the schools dataset and the ACS dataset. Remember that you have learned multiple approaches on how to do this, and that you will have to decide how to summarize data when moving from the school to the county level.***
+
+```{r}
+
+```
+
