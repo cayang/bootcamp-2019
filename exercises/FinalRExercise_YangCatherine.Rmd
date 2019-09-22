@@ -12,6 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Task 1: Import the data
 
 ```{r}
+library(readr)
+library(dplyr)
+
 setwd("..")
 
 # Read in data
@@ -23,7 +26,7 @@ counties <- read_csv("data/nys_acs.csv")
 
 **Getting to know your data is a critical part of data analysis. Take the time to explore the structure of the two dataframes you have imported. What types of variables are there? Is there any missing data? How can you tell? What else do you notice about the data?**
 
-First, look at the the `schools` data, t
+First, look at the the `schools` data.
 ```{r}
 # Explore the datatypes, df dimensions, etc.
 str(schools)
@@ -109,24 +112,168 @@ head(schools)
 
 ## Task 4: Merge datasets
 
-***Create a county-level dataset that merges variables from the schools dataset and the ACS dataset. Remember that you have learned multiple approaches on how to do this, and that you will have to decide how to summarize data when moving from the school to the county level.***
+**Create a county-level dataset that merges variables from the schools dataset and the ACS dataset. Remember that you have learned multiple approaches on how to do this, and that you will have to decide how to summarize data when moving from the school to the county level.**
 
 ```{r}
-# Group the schools dataset by county, and merge with the counties dataset by county_name
+# Group the schools dataset by county
 # Do not select the data that is not applicable at the county level (e.g., school name, school ID, district, etc.)
 # Summarize the data by summing total enrollment and averaging the other variables by county. 
-county <- schools %>% 
-    select(county_name, total_enroll, per_free_lunch, per_reduced_lunch, per_lep, mean_ela_score,
-           mean_math_score) %>%
+schools_by_county <- schools %>% 
+    select(county_name, total_enroll, per_free_lunch, per_reduced_lunch, per_lep, z_score_ela,
+           z_score_math) %>%
     group_by(county_name) %>%
     summarize(total_enroll=sum(total_enroll, na.rm=TRUE),
               per_free_lunch=mean(per_free_lunch, na.rm=TRUE),
               per_reduced_lunch=mean(per_reduced_lunch, na.rm=TRUE),
               per_lep=mean(per_lep, na.rm=TRUE),
-              mean_ela_score=mean(mean_ela_score, na.rm=TRUE),
-              mean_math_score=mean(mean_math_score, na.rm=TRUE))
+              mean_ela_score=mean(z_score_ela, na.rm=TRUE),
+              mean_math_score=mean(z_score_math, na.rm=TRUE))
 
-head(county)
+# Group the counties dataset by county
+# Summarize the data by averaging the variables
+counties_by_county <- counties %>%
+    select(county_name, county_per_poverty, median_household_income, county_per_bach) %>%
+    group_by(county_name) %>%
+    summarize(county_per_poverty=mean(county_per_poverty, na.rm=TRUE),
+              median_household_income=mean(median_household_income, na.rm=TRUE),
+              county_per_bach=mean(county_per_bach, na.rm=TRUE))
 
+# Merge on county_name
+county_df <- merge(schools_by_county, counties_by_county, by="county_name")
+head(county_df)
 ```
 
+## Task 5: Create summary tables
+
+**Generate tables showing the following:**
+
+**1. For each county: total enrollment, percent of students qualifying for free or reduced price lunch, and percent of population in poverty.**
+
+```{r}
+county_df %>% 
+    select(county_name, total_enroll, per_free_lunch, per_reduced_lunch, county_per_poverty) %>%
+    arrange(county_per_poverty)
+```
+
+The total enrollment represents the sum of students enrolled across all schools in all years in the county. The percentage variables are averaged.
+
+**2. For the counties with the top 5 and bottom 5 poverty rate: percent of population in poverty, percent of students qualifying for free or reduced price lunch, mean reading score, and mean math score.**
+```{r}
+# Determine the threshold for the top 5 and bottom 5 poverty rates
+per_poverty_high <- nth(sort(county_df$county_per_poverty, decreasing=TRUE), 5)
+per_poverty_low <- nth(sort(county_df$county_per_poverty, decreasing=TRUE), -5)
+
+# Select the requested data and filter on the poverty rate
+county_df_reduced <- county_df %>% 
+    select(county_name, county_per_poverty, per_free_lunch, per_reduced_lunch, mean_ela_score,
+           mean_math_score) %>% 
+    filter(county_per_poverty >= per_poverty_high | county_per_poverty <= per_poverty_low)
+
+head(county_df_reduced)
+```
+
+### Task 6: Data visualization
+
+**Using ggplot2, visualize the following:**
+
+**1. The relationship between access to free/reduced price lunch and test performance, at the school level.**
+
+First, for ELA test scores:
+```{r}
+library(ggplot2)
+
+# Create a scatterplot with the per_free_lunch on the x-axis and ELA test score on the y-axis 
+schools %>%
+    ggplot() +
+    geom_point(aes(x=per_free_lunch, y=z_score_ela), size=0.75, fill="black") +
+    # Limit the viewing range of per_free_lunch from 0% to 100%
+    xlim(0,1)
+```
+
+For Math test scores:
+
+```{r}
+# Create a scatterplot with the per_free_lunch on the x-axis and Math test score on the y-axis 
+schools %>%
+    ggplot() +
+    geom_point(aes(x=per_free_lunch, y=z_score_math), size=0.75, fill="black") +
+    # Limit the viewing range of per_free_lunch from 0% to 100%
+    xlim(0,1)
+```
+
+**2. Average test performance across counties with high, low, and medium poverty.**
+
+For ELA:
+```{r}
+# Average test scores for ELA
+schools %>%
+    # omit the NAs in the county_category
+    na.omit(county_category) %>%
+    # group by county_category and year to get the average scores by county category and year
+    group_by(county_category, year) %>% 
+    summarize(avg_ela_score=mean(z_score_ela, na.rm=TRUE)) %>%
+    ggplot() +
+    geom_line(aes(x=year, y=avg_ela_score, group=county_category, col=county_category)) +
+    labs(title="Average ELA score across county poverty levels", 
+         x="County poverty level",
+         y="Average ELA test score (z-score)")
+```
+
+For Math:
+```{r}
+# Average test scores for Math
+schools %>%
+    # omit the NAs in the county_category
+    na.omit(county_category) %>% 
+    # group by county_category and year to get the average scores by year
+    group_by(county_category, year) %>% 
+    summarize(avg_math_score=mean(z_score_math, na.rm=TRUE)) %>%
+    ggplot() +
+    geom_line(aes(x=year, y=avg_math_score, group=county_category, col=county_category)) +
+    labs(title="Average Math score across county poverty levels", 
+         x="County poverty level",
+         y="Average Math test score (z-score)")
+```
+
+### Task 7: Answering questions
+**Using the skills you have learned in the past three days, tackle the following question:**
+
+*What can the data tell us about the relationship between poverty and test performance in New York public schools? Has this relationship changed over time? Is this relationship at all moderated by access to free/reduced price lunch?*
+
+*You may use summary tables, statistical models, and/or data visualization in pursuing an answer to this question. Feel free to build on the tables and plots you generated above in Tasks 5 and 6.*
+
+From the visualization in question 6.2, we can clearly see that the poverty level of a county does correlate with the average math and ELA test scores, as anticipated. The highest poverty areas have the lowest test scores, while the lowest poverty areas have the highest test scores. While average test scores across all counties seem to be increasing over time, the one exception is math scores for high poverty areas, which appeared to decline overall over the past few years. 
+
+We can also run a linear regression on each of the test scores as a function of the remaining numerical variables, using the county-level data.
+
+```{r}
+# Perform linear regression for ELA scores
+reg_ela <- lm(mean_ela_score ~ per_free_lunch + total_enroll + county_per_poverty + median_household_income + county_per_bach, data=county_df)
+
+summary(reg_ela)
+
+# Perform linear regression for math scores
+reg_math <- lm(mean_math_score ~ per_free_lunch + total_enroll + county_per_poverty + median_household_income + county_per_bach, data=county_df)
+
+summary(reg_math)
+```
+
+From the results, it looks like the `per_free_lunch` variable is the most significant in explaining variation across test scores. This means that access to free lunches has had an impact on the test scores; otherwise, variation in the test scores would have been caused by other variables.
+
+We can also run a T-test to check that the differences in mean test scores across the "high poverty" and "low poverty" counties are statistically significant.
+
+```{r}
+# Create a variable that is an indicator of whether the county is a "high" or "low" poverty area
+county_df_reduced$per_pov_highLow <- NA
+
+county_df_reduced$per_pov_highLow[county_df_reduced$county_per_poverty >= per_poverty_high] <- "High"
+county_df_reduced$per_pov_highLow[county_df_reduced$county_per_poverty <= per_poverty_low] <- "Low"
+```
+
+```{r}
+# Run the t-test on both ELA and math scores
+t.test(county_df_reduced$mean_ela_score~county_df_reduced$per_pov_highLow)
+t.test(county_df_reduced$mean_math_score~county_df_reduced$per_pov_highLow)
+```
+
+**Given the short time period, any answer will of course prove incomplete. The goal of this task is to give you some room to play around with the skills you've just learned. Don't hesitate to try something even if you don't feel comfortable with it yet. Do as much as you can in the time allotted.**
